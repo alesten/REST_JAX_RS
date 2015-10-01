@@ -8,8 +8,13 @@ package rest;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import exception.QuoteNotFoundException;
+import exception.QuoteNotFoundExceptionMapper;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.Produces;
@@ -19,6 +24,8 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PUT;
 import javax.ws.rs.PathParam;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
 /**
  * REST Web Service
@@ -27,6 +34,7 @@ import javax.ws.rs.PathParam;
  */
 @Path("quote")
 public class quoteResource {
+
     private static Gson gson = new Gson();
     private static JsonParser jsonParser = new JsonParser();
     private static Map<Integer, String> quotes = new HashMap() {
@@ -49,17 +57,53 @@ public class quoteResource {
     /**
      * Retrieves representation of an instance of rest.quoteResource
      *
+     * @param id
      * @return an instance of java.util.HashMap
      */
     @GET
     @Produces("application/json")
     @Path("{id}")
-    public String getJson(@PathParam("id") int id) {
-        JsonObject obj = new JsonObject();
-        obj.addProperty("quote", quotes.get(id));
+    public Response getJson(@PathParam("id") String input) {
+        if(input.toLowerCase().equals("random")){
+            return getRandomJson();
+        }
+        int id; 
+        try{
+            id = Integer.parseInt(input);
+        }catch(NumberFormatException ex){
+            return new QuoteNotFoundExceptionMapper().toResponse(
+                    new QuoteNotFoundException(500, "Internal server Error, we are very sorry for the inconvenience"));
+        }
         
-        return gson.toJson(obj);
+        
+        JsonObject obj = new JsonObject();
+        String quote = quotes.get(id);
+        if (quote == null) {
+            return new QuoteNotFoundExceptionMapper().toResponse(
+                    new QuoteNotFoundException(404, "Quote with requested id not found"));
+        }
+        obj.addProperty("quote", quotes.get(id));
+        return Response.ok(gson.toJson(obj), MediaType.APPLICATION_JSON).build();
     }
+    
+    
+    private Response getRandomJson() {
+        if(quotes.size() <= 0){
+            return new QuoteNotFoundExceptionMapper().toResponse(
+                    new QuoteNotFoundException(404, "No Quotes Created yet"));
+        }
+        Random r = new Random();
+        JsonObject obj = new JsonObject();
+        List<Integer> ids = new ArrayList();
+        for (Map.Entry<Integer, String> entrySet : quotes.entrySet()) {
+            ids.add(entrySet.getKey());
+        }
+        
+        String quote = quotes.get(ids.get(r.nextInt(ids.size())));
+        obj.addProperty("quote", quote);
+        return Response.ok(gson.toJson(obj), MediaType.APPLICATION_JSON).build();
+    }
+    
 
     /**
      * PUT method for updating or creating an instance of quoteResource
@@ -71,21 +115,21 @@ public class quoteResource {
     @Consumes("application/json")
     public void putJson(HashMap content) {
     }
-    
+
     @POST
-    @Consumes("application/json")    
+    @Consumes("application/json")
     @Produces("application/json")
-    public String addQuote(String text){
+    public String addQuote(String text) {
         JsonObject obj = jsonParser.parse(text).getAsJsonObject();
         String quote = obj.get("quote").getAsString();
-        
+
         int id = quotes.size() + 1;
         quotes.put(id, quote);
-        
+
         JsonObject response = new JsonObject();
         response.addProperty("id", id);
         response.addProperty("quote", quote);
-        
+
         return gson.toJson(response);
     }
 }
