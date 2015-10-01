@@ -19,6 +19,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.Produces;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -72,7 +73,7 @@ public class quoteResource {
             id = Integer.parseInt(input);
         }catch(NumberFormatException ex){
             return new QuoteNotFoundExceptionMapper().toResponse(
-                    new QuoteNotFoundException(500, "Internal server Error, we are very sorry for the inconvenience"));
+                    new QuoteNotFoundException(404, "The page/service you requested does not exist"));
         }
         
         
@@ -85,7 +86,6 @@ public class quoteResource {
         obj.addProperty("quote", quotes.get(id));
         return Response.ok(gson.toJson(obj), MediaType.APPLICATION_JSON).build();
     }
-    
     
     private Response getRandomJson() {
         if(quotes.size() <= 0){
@@ -108,28 +108,62 @@ public class quoteResource {
     /**
      * PUT method for updating or creating an instance of quoteResource
      *
-     * @param content representation for the resource
      * @return an HTTP response with content of the updated or created resource.
      */
     @PUT
-    @Consumes("application/json")
-    public void putJson(HashMap content) {
+    @Consumes("application/json")    
+    @Produces("application/json")
+    @Path("{id}")
+    public Response putJson(@PathParam("id") int id, String text) {
+        if(!quotes.containsKey(id)){
+            return new QuoteNotFoundExceptionMapper().toResponse(
+                    new QuoteNotFoundException(404, "Quote with requested id not found"));
+        }
+        
+        quotes.put(id, text);
+        
+        JsonObject obj = new JsonObject();
+        obj.addProperty("id", id);
+        obj.addProperty("quote", text);
+        return Response.ok(gson.toJson(obj), MediaType.APPLICATION_JSON).build();
     }
 
     @POST
     @Consumes("application/json")
     @Produces("application/json")
-    public String addQuote(String text) {
+    public Response addQuote(String text) {
         JsonObject obj = jsonParser.parse(text).getAsJsonObject();
         String quote = obj.get("quote").getAsString();
 
         int id = quotes.size() + 1;
-        quotes.put(id, quote);
+        try{
+            quotes.put(id, quote);
+        }catch(Exception ex){
+            return new QuoteNotFoundExceptionMapper().toResponse(
+                    new QuoteNotFoundException(500, "Internal server Error, we are very sorry for the inconvenience"));
+        }
 
         JsonObject response = new JsonObject();
         response.addProperty("id", id);
         response.addProperty("quote", quote);
 
-        return gson.toJson(response);
+        return Response.ok(gson.toJson(response), MediaType.APPLICATION_JSON).build();
+    }
+    
+    @DELETE
+    @Consumes("application/json")
+    @Produces("application/json")
+    @Path("{id}")
+    public Response deleteQuote(@PathParam("id") int id){
+        if(!quotes.containsKey(id)){
+            return new QuoteNotFoundExceptionMapper().toResponse(
+                    new QuoteNotFoundException(404, "Quote with requested id not found"));
+        }
+        
+        JsonObject obj = new JsonObject();
+        String quote = quotes.get(id);
+        quotes.remove(id);
+        obj.addProperty("quote", quote);
+        return Response.ok(gson.toJson(obj), MediaType.APPLICATION_JSON).build();
     }
 }
